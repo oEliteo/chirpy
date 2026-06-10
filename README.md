@@ -1,3 +1,9 @@
 # Welcome To Chirpy
-This Readme is bound to change as the project evolves. Currently the goal is to create an HTTP Server, that somewhat models the functionality of twitter. 
-The goal of this project is to learn how to create HTTP Servers from the Go Standard Library without the use of an existing framework.
+
+## What is Chirpy?
+Chirpy is a simple web app written in go. In its current state, it is functionally a static http file-server. However will eventually expand into a "monolith"
+which is just fancy speak for a full-stack web app. The core functionality of chirpy is built to emulate the popular social media site X. Formerly known as Twitter.
+In its current state there exist endpoint routing, middleware handlers, and JSON payload responses for errors and successes. Most notably the chirp validation endpoint.
+
+## Usage
+Work In Progress...
