@@ -13,7 +13,7 @@ var bannedWordsMap = map[string]struct{}{
 }
 
 func (cfg *apiConfig) validateChirp(w http.ResponseWriter, r *http.Request) {
-	type args struct {
+	type chirp struct {
 		Body string `json:"body"`
 	}
 
@@ -22,19 +22,19 @@ func (cfg *apiConfig) validateChirp(w http.ResponseWriter, r *http.Request) {
 	}
 
 	decoder := json.NewDecoder(r.Body)
-	params := args{}
-	err := decoder.Decode(&params)
+	currentChirp := chirp{}
+	err := decoder.Decode(&currentChirp)
 	if err != nil {
 		cfg.respondWithError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 
-	if len(params.Body) > 140 {
+	if len(currentChirp.Body) > 140 {
 		cfg.respondWithError(w, http.StatusBadRequest, "Chirp is too long")
 		return
 	}
 
-	cfg.respondWithJSON(w, http.StatusOK, successResponse{CleanedBody: filterChirp(params.Body, bannedWordsMap)})
+	cfg.respondWithJSON(w, http.StatusOK, successResponse{CleanedBody: filterChirp(currentChirp.Body, bannedWordsMap)})
 }
 
 func filterChirp(body string, bannedWords map[string]struct{}) string {

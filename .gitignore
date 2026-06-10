@@ -1,0 +1,13 @@
+# Env
+.env
+
+# Compiled Go binaries
+*.exe
+*.exe_usr
+*.dll
+*.so
+*.dylib
+__debug_bin
+bin/
+out/
+chirpy # Or the specific name of your compiled binary
