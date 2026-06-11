@@ -10,4 +10,4 @@
 __debug_bin
 bin/
 out/
-chirpy # Or the specific name of your compiled binary
+chirpy
