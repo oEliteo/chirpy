@@ -1,13 +1,31 @@
 package main
 
-import _ "github.com/lib/pq"
 import (
+	"chirpy/internal/database"
+	"database/sql"
 	"log"
 	"net/http"
+	"os"
+
+	"github.com/joho/godotenv"
+	_ "github.com/lib/pq"
 )
 
 func main() {
-	cfg := apiConfig{}
+	godotenv.Load()
+	dbURL := os.Getenv("DB_URL")
+	platform := os.Getenv("PLATFORM")
+	db, err := sql.Open("postgres", dbURL)
+	if err != nil {
+		log.Printf("Could not open database connection: %s", err)
+	}
+
+	dbQueries := database.New(db)
+
+	cfg := apiConfig{
+		db:       dbQueries,
+		platform: platform,
+	}
 	port := "8080"
 	mux := http.NewServeMux()
 	fs := http.FileServer(http.Dir("."))
@@ -15,7 +33,11 @@ func main() {
 	mux.HandleFunc("GET /admin/metrics", cfg.metricsHandler)
 	mux.HandleFunc("GET /api/healthz", cfg.checkServerStatus)
 	mux.HandleFunc("POST /admin/reset", cfg.resetHandler)
-	mux.HandleFunc("POST /api/validate_chirp", cfg.validateChirp)
+	mux.HandleFunc("POST /api/chirps", cfg.postChirpHandler)
+	mux.HandleFunc("GET /api/chirps", cfg.getAllChirpsHandler)
+	mux.HandleFunc("POST /api/users", cfg.newUserHandler)
+	mux.HandleFunc("GET /api/chirps/{chirpID}", cfg.getChirpByIDHandler)
+	mux.HandleFunc("POST /api/login", cfg.userLoginHandler)
 	srv := http.Server{
 		Addr:    ":" + port,
 		Handler: mux,
