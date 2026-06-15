@@ -15,6 +15,7 @@ func main() {
 	godotenv.Load()
 	dbURL := os.Getenv("DB_URL")
 	platform := os.Getenv("PLATFORM")
+	secret := os.Getenv("JWT_SECRET")
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
 		log.Printf("Could not open database connection: %s", err)
@@ -23,8 +24,9 @@ func main() {
 	dbQueries := database.New(db)
 
 	cfg := apiConfig{
-		db:       dbQueries,
-		platform: platform,
+		db:        dbQueries,
+		platform:  platform,
+		jwtSecret: secret,
 	}
 	port := "8080"
 	mux := http.NewServeMux()
@@ -38,6 +40,10 @@ func main() {
 	mux.HandleFunc("POST /api/users", cfg.newUserHandler)
 	mux.HandleFunc("GET /api/chirps/{chirpID}", cfg.getChirpByIDHandler)
 	mux.HandleFunc("POST /api/login", cfg.userLoginHandler)
+	mux.HandleFunc("POST /api/refresh", cfg.userRefreshHandler)
+	mux.HandleFunc("POST /api/revoke", cfg.userRevokeHandler)
+	mux.HandleFunc("PUT /api/users", cfg.userUpdateHandler)
+	mux.HandleFunc("DELETE /api/chirps/{chirpID}", cfg.deleteChirpByIDHandler)
 	srv := http.Server{
 		Addr:    ":" + port,
 		Handler: mux,

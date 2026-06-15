@@ -1,6 +1,7 @@
 package main
 
 import (
+	"chirpy/internal/auth"
 	"chirpy/internal/database"
 	"encoding/json"
 	"log"
@@ -20,30 +21,43 @@ type chirp struct {
 
 func (cfg *apiConfig) postChirpHandler(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
-		Body   string    `json:"body"`
-		UserID uuid.UUID `json:"user_id"`
+		Body string `json:"body"`
+	}
+
+	token, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		log.Printf("error getting bearer token from header: %v", err)
+		cfg.respondWithError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	userID, err := auth.ValidateJWT(token, cfg.jwtSecret)
+	if err != nil {
+		log.Printf("error validating token from header: %v", err)
+		cfg.respondWithError(w, http.StatusUnauthorized, "unauthorized")
+		return
 	}
 
 	decoder := json.NewDecoder(r.Body)
 	params := parameters{}
-	err := decoder.Decode(&params)
+	err = decoder.Decode(&params)
 	if err != nil {
-		cfg.respondWithError(w, http.StatusInternalServerError, "internal server error")
+		cfg.respondWithError(w, http.StatusBadRequest, "bad request")
 		return
 	}
 
 	if len(params.Body) > 140 {
-		cfg.respondWithError(w, http.StatusBadRequest, "Chirp is too long")
+		cfg.respondWithError(w, http.StatusBadRequest, "chirp is too long")
 		return
 	}
 
 	params.Body = filterChirp(params.Body, bannedWordsMap)
 
-	//Validation Succeeded Create DB Record...
 	args := database.CreateChirpParams{
 		Body:   params.Body,
-		UserID: params.UserID,
+		UserID: userID,
 	}
+
 	createdChirp, err := cfg.db.CreateChirp(r.Context(), args)
 	if err != nil {
 		log.Printf("Error creating chirp database record")
@@ -106,4 +120,49 @@ func (cfg *apiConfig) getChirpByIDHandler(w http.ResponseWriter, r *http.Request
 	}
 
 	cfg.respondWithJSON(w, http.StatusOK, responseChirp)
+}
+
+func (cfg *apiConfig) deleteChirpByIDHandler(w http.ResponseWriter, r *http.Request) {
+	chirpID, err := uuid.Parse(r.PathValue("chirpID"))
+	if err != nil {
+		log.Printf("Malformed uuid in request")
+		cfg.respondWithError(w, http.StatusBadRequest, "bad request")
+		return
+	}
+
+	dbChirp, err := cfg.db.GetChirpByID(r.Context(), chirpID)
+	if err != nil {
+		log.Printf("error getting chirp from database: %v", err)
+		cfg.respondWithError(w, http.StatusNotFound, "not found")
+		return
+	}
+
+	token, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		log.Printf("error getting bearer token from header: %v", err)
+		cfg.respondWithError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	userID, err := auth.ValidateJWT(token, cfg.jwtSecret)
+	if err != nil {
+		log.Printf("error validating jwt: %v", err)
+		cfg.respondWithError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	if dbChirp.UserID != userID {
+		log.Printf("user is not the owner of the provided chirp")
+		cfg.respondWithError(w, http.StatusForbidden, "forbidden")
+		return
+	}
+
+	err = cfg.db.DeleteChirpByID(r.Context(), dbChirp.ID)
+	if err != nil {
+		log.Printf("error deleting chirp from database: %v", err)
+		cfg.respondWithError(w, http.StatusInternalServerError, "internal server error")
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
