@@ -16,6 +16,7 @@ func main() {
 	dbURL := os.Getenv("DB_URL")
 	platform := os.Getenv("PLATFORM")
 	secret := os.Getenv("JWT_SECRET")
+	polkaKey := os.Getenv("POLKA_KEY")
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
 		log.Printf("Could not open database connection: %s", err)
@@ -27,6 +28,7 @@ func main() {
 		db:        dbQueries,
 		platform:  platform,
 		jwtSecret: secret,
+		polkaKey:  polkaKey,
 	}
 	port := "8080"
 	mux := http.NewServeMux()
@@ -44,6 +46,7 @@ func main() {
 	mux.HandleFunc("POST /api/revoke", cfg.userRevokeHandler)
 	mux.HandleFunc("PUT /api/users", cfg.userUpdateHandler)
 	mux.HandleFunc("DELETE /api/chirps/{chirpID}", cfg.deleteChirpByIDHandler)
+	mux.HandleFunc("POST /api/polka/webhooks", cfg.userUpgradeHandler)
 	srv := http.Server{
 		Addr:    ":" + port,
 		Handler: mux,

@@ -13,10 +13,11 @@ import (
 )
 
 type User struct {
-	ID        uuid.UUID `json:"id"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	Email     string    `json:"email"`
+	ID          uuid.UUID `json:"id"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+	Email       string    `json:"email"`
+	IsChirpyRed bool      `json:"is_chirpy_red"`
 }
 
 func (cfg *apiConfig) newUserHandler(w http.ResponseWriter, r *http.Request) {
@@ -52,10 +53,11 @@ func (cfg *apiConfig) newUserHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	usr := User{
-		ID:        dbUsr.ID,
-		CreatedAt: dbUsr.CreatedAt,
-		UpdatedAt: dbUsr.UpdatedAt,
-		Email:     dbUsr.Email,
+		ID:          dbUsr.ID,
+		CreatedAt:   dbUsr.CreatedAt,
+		UpdatedAt:   dbUsr.UpdatedAt,
+		Email:       dbUsr.Email,
+		IsChirpyRed: dbUsr.IsChirpyRed,
 	}
 
 	cfg.respondWithJSON(w, http.StatusCreated, usr)
@@ -74,6 +76,7 @@ func (cfg *apiConfig) userLoginHandler(w http.ResponseWriter, r *http.Request) {
 		Email        string    `json:"email"`
 		Token        string    `json:"token"`
 		RefreshToken string    `json:"refresh_token"`
+		IsChirpyRed  bool      `json:"is_chirpy_red"`
 	}
 
 	params := parameters{}
@@ -132,6 +135,7 @@ func (cfg *apiConfig) userLoginHandler(w http.ResponseWriter, r *http.Request) {
 		Email:        dbUsr.Email,
 		Token:        accessToken,
 		RefreshToken: dbRefreshToken.Token,
+		IsChirpyRed:  dbUsr.IsChirpyRed,
 	}
 	cfg.respondWithJSON(w, http.StatusOK, respUsr)
 }
@@ -198,10 +202,11 @@ func (cfg *apiConfig) userRevokeHandler(w http.ResponseWriter, r *http.Request) 
 
 func (cfg *apiConfig) userUpdateHandler(w http.ResponseWriter, r *http.Request) {
 	type responseUser struct {
-		ID        uuid.UUID `json:"id"`
-		CreatedAt time.Time `json:"created_at"`
-		UpdatedAt time.Time `json:"updated_at"`
-		Email     string    `json:"email"`
+		ID          uuid.UUID `json:"id"`
+		CreatedAt   time.Time `json:"created_at"`
+		UpdatedAt   time.Time `json:"updated_at"`
+		Email       string    `json:"email"`
+		IsChirpyRed bool      `json:"is_chirpy_red"`
 	}
 
 	type parameters struct {
@@ -252,11 +257,57 @@ func (cfg *apiConfig) userUpdateHandler(w http.ResponseWriter, r *http.Request) 
 	}
 
 	respUser := responseUser{
-		ID:        dbUsr.ID,
-		CreatedAt: dbUsr.CreatedAt,
-		UpdatedAt: dbUsr.UpdatedAt,
-		Email:     dbUsr.Email,
+		ID:          dbUsr.ID,
+		CreatedAt:   dbUsr.CreatedAt,
+		UpdatedAt:   dbUsr.UpdatedAt,
+		Email:       dbUsr.Email,
+		IsChirpyRed: dbUsr.IsChirpyRed,
 	}
 
 	cfg.respondWithJSON(w, http.StatusOK, respUser)
+}
+
+func (cfg *apiConfig) userUpgradeHandler(w http.ResponseWriter, r *http.Request) {
+	type parameters struct {
+		Event string `json:"event"`
+		Data  struct {
+			UserID uuid.UUID `json:"user_id"`
+		} `json:"data"`
+	}
+
+	key, err := auth.GetAPIKey(r.Header)
+	if err != nil {
+		log.Printf("error getting api key from header: %v", err)
+		cfg.respondWithError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	if key != cfg.polkaKey {
+		log.Printf("api key mismatch")
+		cfg.respondWithError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	params := parameters{}
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&params); err != nil {
+		log.Printf("Error decoding request body: %v", err)
+		cfg.respondWithError(w, http.StatusBadRequest, "bad request")
+		return
+	}
+
+	if params.Event != "user.upgraded" {
+		log.Printf("polka event was not user.upgrade")
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	_, err = cfg.db.SetIsChirpyRedByUserID(r.Context(), params.Data.UserID)
+	if err != nil {
+		log.Printf("error user not found: %v", err)
+		cfg.respondWithError(w, http.StatusNotFound, "not found")
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }

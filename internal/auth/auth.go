@@ -11,6 +11,8 @@ import (
 	"github.com/google/uuid"
 )
 
+var ErrNoAuthHeaderIncluded = errors.New("no auth header included in request")
+
 func HashPassword(password string) (string, error) {
 	hash, err := argon2id.CreateHash(password, argon2id.DefaultParams)
 	if err != nil {
@@ -56,13 +58,33 @@ func ValidateJWT(tokenString, tokenSecret string) (uuid.UUID, error) {
 func GetBearerToken(headers http.Header) (string, error) {
 	authHeader := headers.Get("Authorization")
 	if authHeader == "" {
-		return "", errors.New("unable to get token from header")
+		return "", ErrNoAuthHeaderIncluded
 	}
 	if !strings.HasPrefix(authHeader, "Bearer ") {
 		return "", errors.New("token does not contain correct prefix")
 	}
 
 	trimmedToken := strings.TrimPrefix(authHeader, "Bearer ")
+	trimmedToken = strings.TrimSpace(trimmedToken)
+
+	if trimmedToken == "" {
+		return "", errors.New("token is empty after trimming")
+	}
+
+	return trimmedToken, nil
+}
+
+func GetAPIKey(headers http.Header) (string, error) {
+	authHeader := headers.Get("Authorization")
+	if authHeader == "" {
+		return "", ErrNoAuthHeaderIncluded
+	}
+
+	if !strings.HasPrefix(authHeader, "ApiKey ") {
+		return "", errors.New("token does not contain correct prefix")
+	}
+
+	trimmedToken := strings.TrimPrefix(authHeader, "ApiKey ")
 	trimmedToken = strings.TrimSpace(trimmedToken)
 
 	if trimmedToken == "" {
