@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"sort"
 	"time"
 
 	"github.com/google/uuid"
@@ -76,22 +77,64 @@ func (cfg *apiConfig) postChirpHandler(w http.ResponseWriter, r *http.Request) {
 
 func (cfg *apiConfig) getAllChirpsHandler(w http.ResponseWriter, r *http.Request) {
 	responseChirps := make([]chirp, 0)
-	dbChirps, err := cfg.db.GetAllChirps(r.Context())
-	if err != nil {
-		log.Printf("Error retrieving chirps from database.")
-		cfg.respondWithError(w, http.StatusInternalServerError, "internal server error")
-		return
+
+	queryString := r.URL.Query().Get("author_id")
+
+	if queryString == "" {
+		dbChirps, err := cfg.db.GetAllChirps(r.Context())
+		if err != nil {
+			log.Printf("Error retrieving chirps from database.")
+			cfg.respondWithError(w, http.StatusInternalServerError, "internal server error")
+			return
+		}
+		for _, item := range dbChirps {
+			tmp := chirp{
+				ID:        item.ID,
+				CreatedAt: item.CreatedAt,
+				UpdatedAt: item.UpdatedAt,
+				Body:      item.Body,
+				UserID:    item.UserID,
+			}
+			responseChirps = append(responseChirps, tmp)
+		}
+	} else {
+		authorID, err := uuid.Parse(queryString)
+
+		if err != nil {
+			log.Printf("error parsing uuid from string: %v", err)
+			cfg.respondWithError(w, http.StatusBadRequest, "bad request")
+			return
+		}
+
+		dbChirps, err := cfg.db.GetChirpsByAuthorID(r.Context(), authorID)
+		if err != nil {
+			log.Printf("Error retrieving chirps from database.")
+			cfg.respondWithError(w, http.StatusInternalServerError, "internal server error")
+			return
+		}
+
+		for _, item := range dbChirps {
+			tmp := chirp{
+				ID:        item.ID,
+				CreatedAt: item.CreatedAt,
+				UpdatedAt: item.UpdatedAt,
+				Body:      item.Body,
+				UserID:    item.UserID,
+			}
+			responseChirps = append(responseChirps, tmp)
+		}
 	}
 
-	for _, item := range dbChirps {
-		tmp := chirp{
-			ID:        item.ID,
-			CreatedAt: item.CreatedAt,
-			UpdatedAt: item.UpdatedAt,
-			Body:      item.Body,
-			UserID:    item.UserID,
-		}
-		responseChirps = append(responseChirps, tmp)
+	sortString := r.URL.Query().Get("sort")
+
+	if sortString == "desc" {
+		sort.Slice(responseChirps, func(i, j int) bool {
+			return responseChirps[i].CreatedAt.After(responseChirps[j].CreatedAt)
+		})
+	} else {
+		sort.Slice(responseChirps, func(i, j int) bool {
+			return responseChirps[i].CreatedAt.Before(responseChirps[j].CreatedAt)
+		})
 	}
 
 	cfg.respondWithJSON(w, http.StatusOK, responseChirps)
