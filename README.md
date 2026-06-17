@@ -6,7 +6,7 @@ Chirpy is a RESTful API backend built to emulate a popular social media platform
 
 ### Endpoint Usage
 
-GET `api/chirps`
+GET `/api/chirps`
 
 Retrieves a list of chirps. Parameters are optional and used for filtering or ordering.
 
